@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2d39">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Discount Calculator">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <title>Discount Calculator</title>
+  <style>
+    :root { --ink:#202b36; --muted:#68727a; --line:#dfddd6; --blue:#1f2d39; --green:#386d5c; --danger:#b94c57; }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh; margin: 0; padding: max(28px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+      display: grid; place-items: center; color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #e9e6df;
+    }
+    .card { width: min(100%, 430px); overflow: hidden; border: 1px solid #f7f5f0; border-radius: 20px; background: #fdfcf9; box-shadow: 0 16px 40px rgba(31,45,57,.14); }
+    .card-header { padding: 20px 24px; color:#fff; background:#1f2d39; }
+    h1 { margin:0; color:#fff; font-size:21px; letter-spacing:-.04em; text-align:center; }
+    .form { padding: 7px 20px 24px; }
+    label { display:block; margin:17px 0 7px; color:var(--muted); font-size:13px; font-weight:750; letter-spacing:.01em; }
+    .field { position:relative; }
+    .currency { position:absolute; left:13px; top:13px; color:#9ea7b9; font-size:16px; font-weight:750; pointer-events:none; }
+    input { width:100%; height:54px; padding:0 14px; border:1px solid var(--line); border-radius:12px; color:var(--ink); background:#fff; font:inherit; font-size:17px; font-weight:650; transition:.18s ease; }
+    input[type="number"] { appearance:textfield; -moz-appearance:textfield; }
+    input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+    .has-currency input { padding-left:29px; }
+    input::placeholder { color:#b5bdcb; font-weight:500; }
+    input:hover { border-color:#c9cbd0; }
+    input:focus { outline:0; border-color:var(--blue); background:#fff; box-shadow:0 0 0 4px rgba(36,52,71,.12); }
+    input.inactive { color:transparent; background:#edf0f2; border-color:#edf0f2; box-shadow:none; cursor:pointer; }
+    input.inactive:focus { border-color:#cbd2d7; box-shadow:0 0 0 4px rgba(36,52,71,.08); }
+    .inactive-field .currency { opacity:0; }
+    .or-divider { display:flex; align-items:center; gap:11px; margin:22px 0 0; color:#99a4ad; font-size:11px; font-weight:800; letter-spacing:.09em; }
+    .or-divider::before, .or-divider::after { content:""; flex:1; height:1px; background:var(--line); }
+    .result { display:none; gap:12px; margin-top:24px; }
+    .result.show { display:grid; animation:reveal .25s ease-out; }
+    .discount-window { padding:18px; border:1px solid #d9e1e5; border-radius:16px; color:#1f2d39; background:#f0f4f6; text-align:center; }
+    .discount-window .label { display:block; margin-bottom:5px; color:#687985; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    .discount-window .value { font-size:35px; font-weight:850; letter-spacing:-.05em; }
+    .calculation-window { padding:18px; border:1px solid #e5e1d9; border-radius:16px; background:#fffefa; }
+    @keyframes reveal { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+    .result-row { display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; font-size:14px; }
+    .result-row .label { color:var(--muted); }
+    .result-row .value { font-weight:750; }
+    .discount-value { color:var(--green); }
+    .discount-row { display:flex; align-items:baseline; justify-content:space-between; margin:0; padding:7px 0 14px; border-bottom:1px solid #ddd6df; font-size:14px; }
+    .discount-row .label { color:var(--muted); }
+    .discount-row .value { color:var(--green); font-size:14px; font-weight:750; }
+    .final-row { margin-top:8px; padding-top:11px; }
+    .final-row .label { color:var(--ink); font-size:15px; font-weight:800; }
+    .final-row .value { color:var(--blue); font-size:27px; letter-spacing:-.04em; }
+    .negative .discount-window { color:var(--danger); border-color:#f1d7da; background:#fff6f6; }
+    .negative .discount-row .value { color:var(--danger); }
+    .negative .discount-value, .negative .final-row .value, .negative .result-title span:last-child { color:var(--danger); }
+    .error-box { display:none; margin-top:24px; padding:16px 18px; border:1px solid #f1c8cc; border-radius:14px; background:#fdf1f2; color:var(--danger); font-size:14px; font-weight:650; text-align:center; }
+    .error-box.show { display:block; animation:reveal .25s ease-out; }
+    @media (max-width:380px) { body { padding-left:12px; padding-right:12px; } .card-header { padding:19px 18px; } .form { padding-left:18px; padding-right:18px; } h1 { font-size:20px; } }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <header class="card-header">
+      <h1>Discount/Final Price Calculator</h1>
+    </header>
+    <section class="form" aria-label="Discount calculator">
+      <label for="bags">Number of Tins/Bags</label>
+      <input type="number" id="bags" min="0" step="any" inputmode="decimal" placeholder="e.g. 50" oninput="recalc()">
+
+      <label for="mrp">Each Tin/Bag Price</label>
+      <div class="field has-currency"><span class="currency">₹</span><input type="number" id="mrp" min="0" step="any" inputmode="decimal" placeholder="e.g. 1,200" oninput="recalc()"></div>
+
+      <label for="final">Final Charged Total</label>
+      <div class="field has-currency" id="finalField"><span class="currency">₹</span><input type="number" id="final" min="0" step="any" inputmode="decimal" placeholder="e.g. 52,000" onfocus="switchMethod('final')" oninput="onFinalInput()"></div>
+
+      <div class="or-divider">OR</div>
+
+      <label for="pct">Discount %</label>
+      <input type="number" id="pct" min="0" max="100" step="any" inputmode="decimal" placeholder="e.g. 13.3" onfocus="switchMethod('pct')" oninput="onPctInput()">
+
+      <section class="result" id="result" aria-live="polite">
+        <section class="discount-window">
+          <span class="label">Discount %</span>
+          <strong class="value discount-value" id="pctOut">—</strong>
+        </section>
+        <section class="calculation-window">
+          <div class="result-row"><span class="label">Total MRP</span><span class="value" id="totalMrp">—</span></div>
+          <div class="discount-row"><span class="label">Discount Amount</span><span class="value" id="discountAmt">—</span></div>
+          <div class="result-row final-row"><span class="label">Final Price</span><span class="value" id="finalOut">—</span></div>
+        </section>
+      </section>
+      <section class="error-box" id="errorBox" aria-live="polite">
+        Please check the details again — the numbers entered don't look right.
+      </section>
+    </section>
+  </main>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(registration => registration.update()));
+    }
+    const bagsEl = document.getElementById('bags'), mrpEl = document.getElementById('mrp'), finalEl = document.getElementById('final'), pctEl = document.getElementById('pct'), resultEl = document.getElementById('result');
+    const fmt = n => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    const money = n => `${n < 0 ? '−' : ''}₹${fmt(Math.abs(n))}`;
+    const deductionMoney = n => `${n >= 0 ? '−' : '+'}₹${fmt(Math.abs(n))}`;
+    const finalPlaceholder = finalEl.placeholder, pctPlaceholder = pctEl.placeholder;
+    let activeField = null;
+    let pauseTimer = null;
+    function scheduleBlur(input) {
+      clearTimeout(pauseTimer);
+      pauseTimer = setTimeout(() => { input.blur(); }, 1500);
+    }
+    [finalEl, pctEl].forEach(el => {
+      el.addEventListener('input', () => scheduleBlur(el));
+    });
+    function makeInactive(input) {
+      input.value = '';
+      input.placeholder = '';
+      input.classList.add('inactive');
+      input.readOnly = true;
+      input.closest('.field')?.classList.add('inactive-field');
+    }
+    function makeAvailable(input, placeholder) {
+      input.classList.remove('inactive');
+      input.readOnly = false;
+      input.placeholder = placeholder;
+      input.closest('.field')?.classList.remove('inactive-field');
+    }
+    function switchMethod(next) {
+      if (!activeField || activeField === next) return;
+      if (next === 'final') { makeInactive(pctEl); makeAvailable(finalEl, finalPlaceholder); }
+      else { makeInactive(finalEl); makeAvailable(pctEl, pctPlaceholder); }
+      activeField = null;
+      resultEl.classList.remove('show');
+      document.getElementById('errorBox').classList.remove('show');
+    }
+    function onFinalInput() {
+      activeField = finalEl.value.trim() ? 'final' : null;
+      if (activeField) makeInactive(pctEl); else makeAvailable(pctEl, pctPlaceholder);
+      recalc();
+    }
+    function onPctInput() {
+      activeField = pctEl.value.trim() ? 'pct' : null;
+      if (activeField) makeInactive(finalEl); else makeAvailable(finalEl, finalPlaceholder);
+      recalc();
+    }
+    function recalc() {
+      const errorBox = document.getElementById('errorBox');
+      const bags = Number.parseFloat(bagsEl.value), mrp = Number.parseFloat(mrpEl.value);
+      if (!activeField || !Number.isFinite(bags) || !Number.isFinite(mrp)) { resultEl.classList.remove('show'); errorBox.classList.remove('show'); return; }
+      const totalMrp = bags * mrp;
+      let discount, pct, finalPrice;
+      if (activeField === 'final') { finalPrice = Number.parseFloat(finalEl.value); if (!Number.isFinite(finalPrice)) { resultEl.classList.remove('show'); errorBox.classList.remove('show'); return; } discount = totalMrp - finalPrice; pct = totalMrp ? discount / totalMrp * 100 : 0; }
+      else { pct = Number.parseFloat(pctEl.value); if (!Number.isFinite(pct)) { resultEl.classList.remove('show'); errorBox.classList.remove('show'); return; } if (pct < 0 || pct > 100) { resultEl.classList.remove('show'); errorBox.classList.add('show'); return; } discount = totalMrp * pct / 100; finalPrice = totalMrp - discount; }
+      if (discount < 0) {
+        resultEl.classList.remove('show');
+        errorBox.classList.add('show');
+        return;
+      }
+      errorBox.classList.remove('show');
+      document.getElementById('totalMrp').textContent = money(totalMrp);
+      document.getElementById('pctOut').textContent = `${fmt(pct)}%`;
+      document.getElementById('discountAmt').textContent = deductionMoney(discount);
+      document.getElementById('finalOut').textContent = money(finalPrice);
+      resultEl.classList.add('show');
+    }
+  </script>
+</body>
+</html>
