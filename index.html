@@ -7,7 +7,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Discount Calculator">
-  <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <title>Discount Calculator</title>
   <style>
@@ -61,14 +60,40 @@
     .error-box { display:none; margin-top:24px; padding:16px 18px; border:1px solid #f1c8cc; border-radius:14px; background:#fdf1f2; color:var(--danger); font-size:14px; font-weight:650; text-align:center; }
     .error-box.show { display:block; animation:reveal .25s ease-out; }
     @media (max-width:380px) { body { padding-left:12px; padding-right:12px; } .card-header { padding:19px 18px; } .form { padding-left:18px; padding-right:18px; } h1 { font-size:20px; } }
+
+    [hidden] { display:none !important; }
+    .tabs { display:flex; gap:8px; padding:12px 16px; background:#e4e0d6; border-bottom:1px solid var(--line); }
+    .tab { flex:1; height:50px; padding:0 6px; border:2px solid #1f2d39; border-radius:12px; color:#1f2d39; background:#fff; font:inherit; font-size:14px; font-weight:800; line-height:1.15; cursor:pointer; transition:.18s ease; }
+    .tab.active { color:#fff; background:#1f2d39; box-shadow:0 3px 8px rgba(31,45,57,.28); }
+    .tab:not(.active):active { background:#e9eef1; }
+    .fd-rules { margin-top:18px; }
+    .fd-rules summary { color:var(--muted); font-size:13px; font-weight:750; cursor:pointer; }
+    .fd-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    .fd-rules input { height:46px; padding:0 8px; font-size:16px; text-align:center; }
+    .fd-out { margin-top:24px; display:grid; gap:12px; }
+    .fd-out:empty { display:none; }
+    .fd-btn { width:100%; height:54px; margin-top:22px; border:0; border-radius:12px; color:#fff; background:#1f2d39; font:inherit; font-size:16px; font-weight:750; cursor:pointer; }
+    .fd-btn:active { opacity:.85; }
+    .fd-pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .fd-note { margin:0; color:var(--muted); font-size:13px; text-align:center; }
+    .fd-table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+    .fd-table th, .fd-table td { padding:9px 4px; text-align:right; border-bottom:1px solid #eee9df; }
+    .fd-table th:first-child, .fd-table td:first-child { text-align:left; }
+    .fd-table th { color:var(--muted); font-size:11px; font-weight:750; }
+    .fd-table tr.hit td { color:var(--green); background:#edf4f0; font-weight:800; }
+    .fd-calc { padding:10px 14px; overflow-x:auto; }
   </style>
 </head>
 <body>
   <main class="card">
     <header class="card-header">
-      <h1>Discount/Final Price Calculator</h1>
+      <h1 id="appTitle">Discount/Final Price Calculator</h1>
     </header>
-    <section class="form" aria-label="Discount calculator">
+    <nav class="tabs" role="tablist" aria-label="Calculators">
+      <button class="tab active" role="tab" data-tab="disc" aria-selected="true">Discount Calculator</button>
+      <button class="tab" role="tab" data-tab="fd" aria-selected="false">Feed &amp; Medicine %</button>
+    </nav>
+    <section class="form panel" id="panel-disc" aria-label="Discount calculator">
       <label for="bags">Number of Tins/Bags</label>
       <input type="number" id="bags" min="0" step="any" inputmode="decimal" placeholder="e.g. 50" oninput="recalc()">
 
@@ -98,11 +123,39 @@
         Please check the details again — the numbers entered don't look right.
       </section>
     </section>
+    <section class="form panel" id="panel-fd" aria-label="Feed and medicine discount percentage" hidden>
+      <label for="fdFeed">Total feed MRP amount</label>
+      <div class="field has-currency"><span class="currency">₹</span><input type="text" id="fdFeed" inputmode="decimal" autocomplete="off"></div>
+      <label for="fdMed">Total medicine MRP amount</label>
+      <div class="field has-currency"><span class="currency">₹</span><input type="text" id="fdMed" inputmode="decimal" autocomplete="off"></div>
+      <label for="fdTot">Total discount on the bill</label>
+      <div class="field has-currency"><span class="currency">₹</span><input type="text" id="fdTot" inputmode="decimal" autocomplete="off"></div>
+      <details class="fd-rules">
+        <summary>Rules</summary>
+        <div class="fd-grid">
+          <div><label for="fdF1">Feed min %</label><input type="text" id="fdF1" inputmode="numeric" value="10"></div>
+          <div><label for="fdF2">Feed max %</label><input type="text" id="fdF2" inputmode="numeric" value="15"></div>
+          <div><label for="fdM1">Medicine min %</label><input type="text" id="fdM1" inputmode="numeric" value="25"></div>
+        </div>
+        <label for="fdTol">Rounding tolerance (₹)</label>
+        <input type="text" id="fdTol" inputmode="decimal" value="5">
+      </details>
+      <button type="button" class="fd-btn" id="fdGo">Find percentages</button>
+      <section class="fd-out" id="fdOut" aria-live="polite"></section>
+    </section>
   </main>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(registration => registration.update()));
-    }
+    (function () {
+      try {
+        fetch(location.pathname + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) {
+          var h = 0;
+          for (var i = 0; i < t.length; i++) { h = (h * 31 + t.charCodeAt(i)) | 0; }
+          var seen = localStorage.getItem('page-hash');
+          localStorage.setItem('page-hash', String(h));
+          if (seen && seen !== String(h)) location.replace(location.pathname + '?v=' + h);
+        }).catch(function () {});
+      } catch (e) {}
+    })();
     const bagsEl = document.getElementById('bags'), mrpEl = document.getElementById('mrp'), finalEl = document.getElementById('final'), pctEl = document.getElementById('pct'), resultEl = document.getElementById('result');
     const fmt = n => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
     const money = n => `${n < 0 ? '−' : ''}₹${fmt(Math.abs(n))}`;
@@ -168,6 +221,62 @@
       document.getElementById('finalOut').textContent = money(finalPrice);
       resultEl.classList.add('show');
     }
+  </script>
+
+  <script>
+    (function () {
+      var $ = function (i) { return document.getElementById(i); };
+      var titles = { disc: 'Discount/Final Price Calculator', fd: 'Feed & Medicine Discount Percentage' };
+      var tabs = document.querySelectorAll('.tab');
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          var k = t.dataset.tab;
+          tabs.forEach(function (x) { var on = x === t; x.classList.toggle('active', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+          $('panel-disc').hidden = k !== 'disc';
+          $('panel-fd').hidden = k !== 'fd';
+          $('appTitle').textContent = titles[k];
+        });
+      });
+      function num(v) { var n = parseFloat(String(v).replace(/,/g, '')); return isNaN(n) ? null : n; }
+      function inr(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+      function run() {
+        var out = $('fdOut');
+        var feed = num($('fdFeed').value), med = num($('fdMed').value), tot = num($('fdTot').value);
+        if (!feed || !med || !tot) { out.innerHTML = ''; return; }
+        var f1 = Math.round(num($('fdF1').value) || 10), f2 = Math.round(num($('fdF2').value) || 15), m1 = Math.round(num($('fdM1').value) || 25);
+        var tol = num($('fdTol').value); if (tol === null) tol = 5;
+        var rows = [], hits = [];
+        for (var d = f1; d <= f2; d++) {
+          var fd = feed * d / 100, left = tot - fd, d2 = left / med * 100, r = Math.round(d2);
+          var err = Math.abs(fd + med * r / 100 - tot);
+          var row = { d: d, fd: fd, left: left, d2: d2, r: r, err: err, ok: left > 0 && r >= m1 && err <= tol };
+          rows.push(row); if (row.ok) hits.push(row);
+        }
+        var h = '';
+        if (hits.length === 1) {
+          h += '<div class="fd-pair"><div class="discount-window"><span class="label">Feed</span><strong class="value discount-value">' + hits[0].d + '%</strong></div>' +
+               '<div class="discount-window"><span class="label">Medicine</span><strong class="value discount-value">' + hits[0].r + '%</strong></div></div>' +
+               '<p class="fd-note">One exact fit, off by ₹' + hits[0].err.toFixed(2) + ' from your total.</p>';
+        } else if (hits.length > 1) {
+          h += '<div class="error-box show">' + hits.length + ' pairs fit, so this bill is ambiguous. Check a second bill or lower the tolerance.</div>';
+        } else {
+          h += '<div class="error-box show">No pair fits the rules. Check the amounts or widen the tolerance.</div>';
+        }
+        h += '<div class="calculation-window fd-calc"><table class="fd-table"><tr><th>Feed %</th><th>Feed disc.</th><th>Left</th><th>Med. %</th></tr>';
+        rows.forEach(function (r) {
+          h += '<tr class="' + (r.ok ? 'hit' : '') + '"><td>' + r.d + '%</td><td>' + inr(r.fd) + '</td><td>' + (r.left > 0 ? inr(r.left) : '—') + '</td><td>' + (r.left > 0 ? r.d2.toFixed(1) + '%' : '—') + '</td></tr>';
+        });
+        h += '</table></div>';
+        out.innerHTML = h;
+      }
+      var shown = false;
+      function go() { shown = true; run(); }
+      $('fdGo').addEventListener('click', go);
+      ['fdFeed', 'fdMed', 'fdTot', 'fdF1', 'fdF2', 'fdM1', 'fdTol'].forEach(function (id) {
+        $(id).addEventListener('input', function () { if (shown) run(); });
+        $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+      });
+    })();
   </script>
 </body>
 </html>
